@@ -449,6 +449,7 @@ if __name__ == '__main__':
     do_timestamp = False
     timestamp_value = 0
     do_clean = False
+    lef_savelibname = None
 
     have_lef = False
     have_techlef = False
@@ -1132,7 +1133,14 @@ if __name__ == '__main__':
                 if do_compile_only == True:
                     if newname and targname:
                         if os.path.isfile(targname):
-                            os.remove(targname)
+                            if have_lefanno:
+                                # If the original source is a single file
+                                # but is used for annotation, then save the
+                                # file name and delete it just before writing
+                                # the LEF library
+                                lef_savelibname = targname
+                            else:
+                                os.remove(targname)
 
                 # "rename" with "compile" or "compile-only":  Change the name
                 # of the compiled file.
@@ -1668,9 +1676,6 @@ if __name__ == '__main__':
                         # original source LEF file.
                         lefdest = lefsrclibdir + '/' if have_lefanno else ''
 
-                        for leffile in leffiles:
-                            if have_lefanno:
-                                print('lef read ' + lefsrclibdir + '/' + leffile, file=ofile)
                         for lefmacro in lefmacros:
                             print('if {[cellname list exists ' + lefmacro + '] != 0} {', file=ofile)
                             print('   load ' + lefmacro, file=ofile)
@@ -1710,6 +1715,12 @@ if __name__ == '__main__':
         # was also passed as an option, then build the LEF library now from
         # the LEF output from magic.
         print("Compiling LEF library from magic output.")
+
+        # If a single vendor library file was used for annotation, remove it now.
+        if lef_savelibname:
+            if os.path.isfile(lef_savelibname):
+                os.remove(lef_savelibname)
+
         if lef_compile or lef_compile_only:
             create_lef_library(lefsrclibdir, destlib, lef_compile_only, lef_exclude)
 
