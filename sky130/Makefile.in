@@ -81,6 +81,13 @@
 #		specified, then the xschem setup will be cloned from the
 #		repository and installed.
 #
+#	--enable-klayout-sky130[=<path>]
+#		If enabled, install the Sky130 setup for the klayout layout
+#		editor.  If <path> is specified, then the klayout setup is
+#		expected to be found rooted at the given path.  If not
+#		specified, then the klayout setup will be cloned from the
+#		repository and installed.
+#
 # External (third-party) libraries and tool setups are the following (disabled
 # by default):
 #
@@ -221,6 +228,8 @@ endif
 # Path to independent library sources (to be added to configuration options).
 ALPHA_PATH = @SKY130_ML_XX_HD_PATH@
 XSCHEM_PATH = @XSCHEM_SKY130_PATH@
+KLAYOUT_PATH = @KLAYOUT_SKY130_PATH@
+PRECHECK_PATH = @PRECHECK_SKY130_PATH@
 SRAM_PATH = @SKY130_SRAM_MACROS_PATH@
 OSU_T12_PATH = @SKY130_OSU_T12_PATH@
 OSU_T15_PATH = @SKY130_OSU_T15_PATH@
@@ -229,6 +238,8 @@ OSU_T18_PATH = @SKY130_OSU_T18_PATH@
 PDK_URL = https://github.com/google/skywater-pdk
 ALPHA_URL = https://github.com/PaulSchulz/sky130_pschulz_xx_hd
 XSCHEM_URL = https://github.com/StefanSchippers/xschem_sky130
+KLAYOUT_URL = https://github.com/mabrains/sky130_klayout_pdk
+PRECHECK_URL = https://github.com/efabless/mpw_precheck
 SRAM_URL = https://github.com/efabless/sky130_sram_macros
 OSU_T12_URL = https://foss-eda-tools.googlesource.com/skywater-pdk/libs/sky130_osu_sc_t12
 OSU_T15_URL = https://foss-eda-tools.googlesource.com/skywater-pdk/libs/sky130_osu_sc_t15
@@ -562,10 +573,18 @@ else
 	SPIEXT = spice
 endif
 
+reference: ${TECH}.json
+	# Rewrite the ${TECH}.json file to change the commit values in
+	# "reference" to reflect the state of the system when  "make
+	# reference" was run.  This is then committed to the open_pdks
+	# repository to create a known reference configuration of all
+	# tools.
+	../common/save_commit_refs.py ${COMMIT_DEFS} ${TECH}.json
+
 all: $(foreach var, ${VARIANTS}, all-$(var))
 
 # Handle prerequisites (fetch and install the PDK and requested libraries)
-prerequisites: pdk-repo alpha-repo xschem-repo sram-repo osu-t12-repo osu-t15-repo osu-t18-repo
+prerequisites: pdk-repo alpha-repo xschem-repo klayout-repo precheck-repo sram-repo osu-t12-repo osu-t15-repo osu-t18-repo
 
 pdk-repo:
 	if test "x${SKYWATER_PATH}" != "x" ; then \
@@ -607,6 +626,26 @@ xschem-repo:
 		fi ; \
 	fi
 
+klayout-repo:
+	if test "x${KLAYOUT_PATH}" != "x" ; then \
+		if test -d "${KLAYOUT_PATH}" ; then \
+			echo "Using existing installation of klayout setup from ${KLAYOUT_PATH}" ; \
+		else \
+			echo "Downloading klayout setup from ${KLAYOUT_URL}" ; \
+			../scripts/download.sh ${KLAYOUT_URL} ${KLAYOUT_PATH} ; \
+		fi ; \
+	fi
+
+precheck-repo:
+	if test "x${PRECHECK_PATH}" != "x" ; then \
+		if test -d "${PRECHECK_PATH}" ; then \
+			echo "Using existing installation of klayout setup from ${PRECHECK_PATH}" ; \
+		else \
+			echo "Downloading klayout setup from ${PRECHECK_URL}" ; \
+			../scripts/download.sh ${PRECHECK_URL} ${PRECHECK_PATH} ; \
+		fi ; \
+	fi
+
 osu-t12-repo:
 	if test "x${OSU_T12_PATH}" != "x" ; then \
 		if test -d "${OSU_T12_PATH}" ; then \
@@ -638,7 +677,7 @@ osu-t18-repo:
 	fi
 
 # Update prerequisites
-update: update-pdk-repo update-alpha-repo update-xschem-repo update-sram-repo update-osu-t12-repo update-osu-t15-repo update-osu-t18-repo
+update: update-pdk-repo update-alpha-repo update-xschem-repo update-klayout-repo update-precheck-repo update-sram-repo update-osu-t12-repo update-osu-t15-repo update-osu-t18-repo
 
 update-pdk-repo:
 	if test "x${SKYWATER_PATH}" != "x" ; then \
@@ -662,6 +701,18 @@ update-xschem-repo:
 	if test "x${XSCHEM_PATH}" != "x" ; then \
 		echo "Updating xschem setup from ${XSCHEM_URL}" ; \
 		../scripts/update.sh ${XSCHEM_PATH} ; \
+	fi
+
+update-klayout-repo:
+	if test "x${KLAYOUT_PATH}" != "x" ; then \
+		echo "Updating klayout setup from ${KLAYOUT_URL}" ; \
+		../scripts/update.sh ${KLAYOUT_PATH} ; \
+	fi
+
+update-precheck-repo:
+	if test "x${PRECHECK_PATH}" != "x" ; then \
+		echo "Updating klayout setup from ${PRECHECK_URL}" ; \
+		../scripts/update.sh ${PRECHECK_PATH} ; \
 	fi
 
 update-osu-t12-repo:
@@ -838,20 +889,6 @@ irsim-%: irsim
 		${IRSIM_STAGING_$*}/${SKY130$*}_$$corner.prm ; \
 	done
 
-klayout-%: klayout/${TECH}.lyp klayout/${TECH}.lyt
-	mkdir -p ${KLAYOUTTOP_STAGING_$*}
-	mkdir -p ${KLAYOUT_STAGING_$*}
-	rm -f ${KLAYOUT_STAGING_$*}/${SKY130$*}.lyp
-	rm -f ${KLAYOUT_STAGING_$*}/${SKY130$*}.lyt
-	${CPP} -utf8 ${SKY130$*_DEFS} klayout/${TECH}.lyp \
-		${KLAYOUT_STAGING_$*}/${SKY130$*}.lyp
-	${CPP} -utf8 ${SKY130$*_DEFS} klayout/${TECH}.lyt \
-		${KLAYOUT_STAGING_$*}/${SKY130$*}.lyt
-	${CPP} -utf8 ${SKY130$*_DEFS} klayout/${TECH}.lydrc \
-		${KLAYOUT_STAGING_$*}/${SKY130$*}.lydrc
-	#./custom/scripts/gen_run_drc.py -l ${KLAYOUT_STAGING_$*}/${SKY130$*}.lydrc \
-	#	-o ${KLAYOUT_STAGING_$*}/${SKY130$*}.drc
-
 xcircuit-%: xcircuit/${TECH}.xcircuitrc
 	rm -rf ${XCIRCUIT_STAGING_$*}
 	mkdir -p ${XCIRCUITTOP_STAGING_$*}
@@ -865,6 +902,31 @@ xcircuit-%: xcircuit/${TECH}.xcircuitrc
 		xcircuit/sky130_fd_sc_hd.lps ${XCIRCUIT_STAGING_$*}/sky130_fd_sc_hd.lps
 	${CPP} ${SKY130$*_DEFS} xcircuit/${TECH}.xcircuitrc \
 		${XCIRCUIT_STAGING_$*}/${SKY130$*}.xcircuitrc
+
+klayout-%: ${KLAYOUT_PATH}
+	if test "x${KLAYOUT_PATH}" != "x" ; then \
+		rm -rf ${KLAYOUT_STAGING_$*} ; \
+		mkdir -p ${KLAYOUT_STAGING_$*} ; \
+		mkdir -p ${KLAYOUT_STAGING_$*}/tech ; \
+		mkdir -p ${KLAYOUT_STAGING_$*}/drc ; \
+		mkdir -p ${KLAYOUT_STAGING_$*}/lvs ; \
+		mkdir -p ${KLAYOUT_STAGING_$*}/scripts ; \
+		mkdir -p ${KLAYOUT_STAGING_$*}/pymacros ; \
+	fi
+	# Copy lvs and pymacro directories from the repository.  Other files
+	# are rearranged to the preferred structure.
+	if test "x${KLAYOUT_PATH}" != "x" ; then \
+		cp -rp ${KLAYOUT_PATH}/sky130_tech/tech/sky130/lvs/* ${KLAYOUT_STAGING_$*}/lvs/ ; \
+		cp -rp ${KLAYOUT_PATH}/sky130_tech/tech/sky130/pymacros/* ${KLAYOUT_STAGING_$*}/pymacros/ ; \
+		cp ${KLAYOUT_PATH}/sky130_tech/tech/sky130/${TECH}.lyp ${KLAYOUT_STAGING_$*}/tech/${SKY130$*}.lyp ; \
+		cp ${KLAYOUT_PATH}/sky130_tech/tech/sky130/${TECH}.lyt ${KLAYOUT_STAGING_$*}/tech/${SKY130$*}.lyt ; \
+		cp -rp ${KLAYOUT_PATH}/scripts/* ${KLAYOUT_STAGING_$*}/scripts/ ; \
+	fi
+	# Copy drc directory contents from the Efabless Open MPW precheck repository
+	if test "x${PRECHECK_PATH}" != "x" ; then \
+		cp ${PRECHECK_PATH}/checks/tech-files/sky130A_mr.drc ${KLAYOUT_STAGING_$*}/drc/${SKY130$*}_mr.drc ; \
+		cp -rp ${PRECHECK_PATH}/checks/drc_checks/klayout/* ${KLAYOUT_STAGING_$*}/drc/ ; \
+	fi
 
 xschem-%: ${XSCHEM_PATH}
 	if test "x${XSCHEM_PATH}" != "x" ; then \
@@ -895,10 +957,12 @@ xschem-%: ${XSCHEM_PATH}
 	# In the sky130A variant, remove the reram schematic/symbol and references
 	if test "x${XSCHEM_PATH}" != "x" ; then \
 		if test "x$*" == "xA" ; then \
+			rm -f  ${XSCHEM_STAGING_$*}/sky130_tests/test_reram* ; \
 			rm -f  ${XSCHEM_STAGING_$*}/sky130_tests/tb_reram* ; \
 			rm -f  ${XSCHEM_STAGING_$*}/sky130_fd_pr/reram* ; \
 			cat ${XSCHEM_STAGING_$*}/sky130_tests/top.sch | \
-				${SED} -e "/reram/,+7d" \
+				${SED} -e "/^C.*{.*reram.*}.*{.*[^}] *$$/,/.*} *$$/d" \
+					-e "/^C.*{.*reram.*}.*{.*} *$$/d" \
 				> ${XSCHEM_STAGING_$*}/temp ; \
 			mv ${XSCHEM_STAGING_$*}/temp ${XSCHEM_STAGING_$*}/sky130_tests/top.sch ; \
 		fi ; \
@@ -1106,7 +1170,6 @@ primitive-%:
 			include=custom/sky130_fd_pr/*.gds \
 			compile-only \
 			options=custom/scripts/gds_import_setup.tcl \
-		-cdl %l/latest/cells/*/*.cdl compile-only \
 		-lef %l/latest/cells/*/*.magic.lef compile-only \
 		-spice %l/latest/cells/*/*.spice filter=custom/scripts/rename_cells.py \
 		-library primitive sky130_fd_pr 2>&1 | tee -a ${SKY130$*}_make.log
@@ -1234,6 +1297,10 @@ io-%:
 	# when writing HVI to GDS during hierarchical adjustments.
 	${ADDPROP} ${STAGING_PATH}/${SKY130$*} sky130_fd_io sky130_fd_io__top_gpiov2 \
 		"MASKHINTS_HVI 1346 17198 5828 19224 13700 1890 15920 2360 24 17522 1778 20612" -mag
+	# Run the add_properties.py script to add extraction information to layout
+	# cells for which the intended device cannot be extracted.
+	./custom/scripts/add_properties.py ${EF_FORMAT} -variant=${SKY130$*} \
+		2>&1 | tee -a ${SKY130$*}_make.log || true
 
 digital-hd-%:
 	# Install custom additions to standard cell libraries

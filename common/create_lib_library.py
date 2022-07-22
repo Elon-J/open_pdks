@@ -44,7 +44,7 @@ def usage():
 def create_lib_library(destlibdir, destlib, do_compile_only=False, excludelist=[]):
 
     # destlib should not have a file extension
-    destlibrooot = os.path.splitext(destlib)[0]
+    destlibroot = os.path.splitext(destlib)[0]
 
     alllibname = destlibdir + '/' + destlibroot + '.lib'
     if os.path.isfile(alllibname):
@@ -92,7 +92,8 @@ def create_lib_library(destlibdir, destlib, do_compile_only=False, excludelist=[
                     for lline in llines:
                         if headerdone:
                             if not headerseen:
-                                if not lline.split()[0] == 'cell':
+                                ltok = lline.split('(')
+                                if len(ltok) == 0 or not ltok[0].strip() == 'cell':
                                     continue
                                 else:
                                     headerseen = True
